@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { supabase } from '@/lib/supabase'
 
+export const maxDuration = 60
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 export async function POST(request: NextRequest) {
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
     const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
       {
         type: 'text',
-        text: `Here's a moment from my day: ${momentText}\n\nWrite a beautiful, warm story about this moment starring me as Prerana. Make it 200-250 words, third person, warm and uplifting — like a best friend narrating my highlight reel. Highlight what made me awesome, strong, or thoughtful in this moment. Also give it a short, memorable title (5-7 words max).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
+        text: `Here's a moment from my day: ${momentText}\n\nWrite a grounded, insightful story about this moment starring Prerana. Make it 200-250 words, third person. Also give it a short title (5-7 words max).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
       },
     ]
     if (imageUrl) {
@@ -45,7 +47,17 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: `You are a warm, uplifting narrator who transforms everyday moments into beautiful, confidence-boosting stories about Prerana. You write like her most supportive best friend — someone who sees her strength, wisdom, and awesomeness even in small moments. Your tone is genuine and heartfelt, never cheesy or over-the-top. You celebrate her exactly as she is. Every story ends with a sentence that reminds her just how capable and wonderful she truly is.`,
+          content: `You are a warm, grounded narrator — part therapist, part motivational speaker — who helps Prerana see her own strengths clearly and honestly. You write in third person about real moments from her day.
+
+Your style:
+- Speak with calm authority, like someone who truly understands human behavior
+- Point out what her actions reveal about her character — not in a cheerleader way, but in a "let's be honest about what just happened" way
+- Use specific, real language. No superlatives, no "amazing" or "incredible". Say things like "That took courage", "Most people would have avoided that conversation", "She made a choice most people don't make"
+- Acknowledge that it wasn't easy — then explain why she did it anyway
+- Help her see the pattern: this moment connects to who she actually is, not just what she did today
+- End with one honest, grounding insight — something she can carry with her
+
+Tone: think Brené Brown meets a wise friend who doesn't let you sell yourself short.`,
         },
         { role: 'user', content: userContent },
       ],
@@ -73,9 +85,11 @@ export async function POST(request: NextRequest) {
         .upload(audioPath, audioBuffer, { contentType: 'audio/mpeg' })
       if (!audioError) {
         audioUrl = supabase.storage.from('media').getPublicUrl(audioPath).data.publicUrl
+      } else {
+        console.error('Audio upload error:', audioError)
       }
     } catch (audioErr) {
-      console.error('Audio generation failed (non-fatal):', audioErr)
+      console.error('Audio generation failed:', audioErr)
     }
 
     // Save to database
