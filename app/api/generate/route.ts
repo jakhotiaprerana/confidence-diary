@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
       {
         type: 'text',
-        text: `Here's a moment from my day: ${momentText}\n\nWrite a grounded, insightful story about this moment starring Prerana. Make it 200-250 words, third person. Also give it a short title (5-7 words max).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
+        text: `Here's a moment from my day: ${momentText}${imageUrl ? '\n\nI have also shared an image connected to this moment. Look closely at it — any visible feedback, messages, reactions, expressions, results, or context in the image. Weave what you observe from the image directly into the story as concrete evidence of what happened.' : ''}\n\nWrite a grounded, insightful story about this moment starring Prerana. Make it 200-250 words, third person. Also give it a short title (5-7 words max).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
       },
     ]
     if (imageUrl) {
