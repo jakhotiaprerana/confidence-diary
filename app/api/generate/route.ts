@@ -86,18 +86,27 @@ Tone: think Brené Brown meets a wise friend who doesn't let you sell yourself s
         },
         { role: 'user', content: userContent },
       ],
-      response_format: { type: 'json_object' },
-      max_tokens: 600,
+      max_tokens: 700,
     })
 
-    const rawContent = completion.choices[0].message.content || ''
-    console.log('GPT-4o raw response:', rawContent.slice(0, 300))
+    const choice = completion.choices[0]
+    const rawContent = choice.message.content || ''
+    console.log('GPT-4o finish_reason:', choice.finish_reason)
+    console.log('GPT-4o raw response:', rawContent.slice(0, 500))
+
+    if (!rawContent) {
+      throw new Error(`AI returned empty response (finish_reason: ${choice.finish_reason})`)
+    }
+
+    // Extract JSON — handle markdown code fences GPT-4o sometimes wraps around it
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error(`No JSON found in AI response: ${rawContent.slice(0, 200)}`)
 
     let parsed: Record<string, string> = {}
     try {
-      parsed = JSON.parse(rawContent)
+      parsed = JSON.parse(jsonMatch[0])
     } catch {
-      throw new Error(`Invalid JSON from AI: ${rawContent.slice(0, 200)}`)
+      throw new Error(`Could not parse JSON: ${jsonMatch[0].slice(0, 200)}`)
     }
 
     // Handle key name variations GPT-4o sometimes returns
