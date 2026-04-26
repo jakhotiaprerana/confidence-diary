@@ -93,10 +93,23 @@ Never use: "amazing", "incredible", "journey", "empowered", "passion", "leverage
       max_tokens: 600,
     })
 
-    const parsed = JSON.parse(completion.choices[0].message.content || '{}')
-    const { title, story } = parsed
+    const rawContent = completion.choices[0].message.content || ''
+    console.log('GPT-4o raw response:', rawContent.slice(0, 300))
 
-    if (!title || !story) throw new Error('Failed to parse story from AI response')
+    let parsed: Record<string, string> = {}
+    try {
+      parsed = JSON.parse(rawContent)
+    } catch {
+      throw new Error(`Invalid JSON from AI: ${rawContent.slice(0, 200)}`)
+    }
+
+    // Handle key name variations GPT-4o sometimes returns
+    const title = parsed.title || parsed.Title || parsed.TITLE || ''
+    const story = parsed.story || parsed.Story || parsed.STORY || parsed.content || parsed.text || ''
+
+    if (!title || !story) {
+      throw new Error(`AI returned unexpected fields: ${Object.keys(parsed).join(', ')}`)
+    }
 
     // Generate audio — shimmer voice, HD quality
     let audioUrl: string | null = null
