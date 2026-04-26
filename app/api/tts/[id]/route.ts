@@ -22,8 +22,8 @@ export async function GET(
   }
 
   const mp3 = await openai.audio.speech.create({
-    model: 'tts-1',
-    voice: 'nova',
+    model: 'tts-1-hd',
+    voice: 'shimmer',
     input: story.story_text,
   })
 

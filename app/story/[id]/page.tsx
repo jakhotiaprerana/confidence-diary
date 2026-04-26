@@ -12,9 +12,9 @@ async function getStory(id: string): Promise<Story | null> {
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('en-US', {
     weekday: 'long',
-    year: 'numeric',
     month: 'long',
     day: 'numeric',
+    year: 'numeric',
   })
 }
 
@@ -31,27 +31,38 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
         </Link>
       </div>
 
-      <article className="bg-white rounded-2xl shadow-sm p-6 border border-rose-100">
-        <p className="text-xs text-stone-400 mb-2">{formatDate(story.created_at)}</p>
-        <h1 className="text-2xl font-bold text-stone-800 mb-5 leading-snug">{story.title}</h1>
-
+      <article className="bg-white rounded-2xl shadow-sm overflow-hidden border border-rose-100">
         {story.image_url && (
-          <img
-            src={story.image_url}
-            alt="Moment"
-            className="w-full h-52 object-cover rounded-xl mb-5"
-          />
+          <div className="relative w-full h-64">
+            <img
+              src={story.image_url}
+              alt="Moment"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            <p className="absolute bottom-3 left-4 text-white/80 text-xs font-medium tracking-wide">
+              {formatDate(story.created_at)}
+            </p>
+          </div>
         )}
 
-        <div className="space-y-4">
-          {story.story_text.split('\n\n').map((para, i) => (
-            <p key={i} className="text-stone-700 leading-relaxed text-[15px]">
-              {para}
-            </p>
-          ))}
-        </div>
+        <div className="p-6">
+          {!story.image_url && (
+            <p className="text-sm text-rose-300 font-medium mb-2">{formatDate(story.created_at)}</p>
+          )}
 
-        <AudioPlayer audioUrl={story.audio_url ?? `/api/tts/${story.id}`} />
+          <h1 className="text-2xl font-bold text-stone-800 mb-5 leading-snug">{story.title}</h1>
+
+          <div className="space-y-4">
+            {story.story_text.split('\n\n').map((para, i) => (
+              <p key={i} className="text-stone-700 leading-relaxed text-[15px]">
+                {para}
+              </p>
+            ))}
+          </div>
+
+          <AudioPlayer audioUrl={story.audio_url ?? `/api/tts/${story.id}`} />
+        </div>
       </article>
 
       <div className="mt-6 text-center">

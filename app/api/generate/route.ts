@@ -16,10 +16,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Moment text is required' }, { status: 400 })
     }
 
-    // Upload image if provided
+    // Process image — base64 for GPT-4o vision (always works), Supabase for display
+    let imageBase64: string | null = null
     let imageUrl: string | null = null
+
     if (imageFile && imageFile.size > 0) {
       const imageBuffer = Buffer.from(await imageFile.arrayBuffer())
+      imageBase64 = `data:${imageFile.type};base64,${imageBuffer.toString('base64')}`
+
+      // Ensure bucket exists, then upload for display
+      await supabase.storage.createBucket('media', { public: true }).catch(() => {})
       const ext = imageFile.type.split('/')[1] || 'jpg'
       const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { error } = await supabase.storage
@@ -27,18 +33,20 @@ export async function POST(request: NextRequest) {
         .upload(path, imageBuffer, { contentType: imageFile.type })
       if (!error) {
         imageUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+      } else {
+        console.error('Image upload error:', error)
       }
     }
 
-    // Build message content
+    // Build message — always send image as base64 so GPT-4o can see it
     const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
       {
         type: 'text',
-        text: `Here's a moment from my day: ${momentText}${imageUrl ? '\n\nI have also shared an image connected to this moment. Look closely at it — any visible feedback, messages, reactions, expressions, results, or context in the image. Weave what you observe from the image directly into the story as concrete evidence of what happened.' : ''}\n\nWrite a grounded, insightful story about this moment starring Prerana. Make it 200-250 words, third person. Also give it a short title (5-7 words max).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
+        text: `Here's a moment from Prerana's day: ${momentText}${imageBase64 ? '\n\nShe also shared a photo from this moment. Look at it closely — describe what you see in the image and weave it naturally into the story, like you\'re looking at it together.' : ''}\n\nWrite a warm, personal story about this moment in third person (200–250 words). Also give it a short title (5–7 words).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
       },
     ]
-    if (imageUrl) {
-      userContent.push({ type: 'image_url', image_url: { url: imageUrl } })
+    if (imageBase64) {
+      userContent.push({ type: 'image_url', image_url: { url: imageBase64 } })
     }
 
     // Generate story
@@ -47,17 +55,20 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: `You are a warm, grounded narrator — part therapist, part motivational speaker — who helps Prerana see her own strengths clearly and honestly. You write in third person about real moments from her day.
+          content: `You are the voice inside Prerana's personal diary — warm, honest, and deeply familiar with who she is.
+
+You write in third person, the way a best friend might retell a story: with affection, specificity, and no need to over-explain.
 
 Your style:
-- Speak with calm authority, like someone who truly understands human behavior
-- Point out what her actions reveal about her character — not in a cheerleader way, but in a "let's be honest about what just happened" way
-- Use specific, real language. No superlatives, no "amazing" or "incredible". Say things like "That took courage", "Most people would have avoided that conversation", "She made a choice most people don't make"
-- Acknowledge that it wasn't easy — then explain why she did it anyway
-- Help her see the pattern: this moment connects to who she actually is, not just what she did today
-- End with one honest, grounding insight — something she can carry with her
+- Tell the story as it actually happened. Be specific — what she did, what she chose, how she showed up.
+- Don't announce character insights. Just describe the moment so vividly that the meaning lands on its own.
+- Write conversationally. Short sentences. Real words. No therapy-speak, no corporate language.
+- If there's a photo, let it breathe in the story — describe what you see the way you'd describe a favourite memory.
+- End with one quiet line she might want to read again on a harder day.
 
-Tone: think Brené Brown meets a wise friend who doesn't let you sell yourself short.`,
+Tone: like a letter from your most perceptive, loving friend. Warm but honest. Not flattery — recognition.
+
+Never use: "amazing", "incredible", "journey", "empowered", "passion", "leveraged", or hollow affirmations.`,
         },
         { role: 'user', content: userContent },
       ],
@@ -70,15 +81,16 @@ Tone: think Brené Brown meets a wise friend who doesn't let you sell yourself s
 
     if (!title || !story) throw new Error('Failed to parse story from AI response')
 
-    // Generate audio
+    // Generate audio — shimmer voice, HD quality
     let audioUrl: string | null = null
     try {
       const mp3 = await openai.audio.speech.create({
-        model: 'tts-1',
-        voice: 'nova',
+        model: 'tts-1-hd',
+        voice: 'shimmer',
         input: story,
       })
       const audioBuffer = Buffer.from(await mp3.arrayBuffer())
+      await supabase.storage.createBucket('media', { public: true }).catch(() => {})
       const audioPath = `audio/${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`
       const { error: audioError } = await supabase.storage
         .from('media')
