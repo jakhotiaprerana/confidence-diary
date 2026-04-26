@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Story } from '@/lib/types'
 import AudioPlayer from '@/components/AudioPlayer'
+import DeleteButton from '@/components/DeleteButton'
 
 async function getStory(id: string): Promise<Story | null> {
   const { data } = await supabase.from('stories').select('*').eq('id', id).single()
@@ -62,6 +63,10 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <AudioPlayer audioUrl={story.audio_url ?? `/api/tts/${story.id}`} />
+
+          <div className="mt-6 pt-4 border-t border-rose-50">
+            <DeleteButton storyId={story.id} />
+          </div>
         </div>
       </article>
 
