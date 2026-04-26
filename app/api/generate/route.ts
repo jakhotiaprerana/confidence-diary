@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import sharp from 'sharp'
 import { supabase } from '@/lib/supabase'
 
 export const maxDuration = 60
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+async function compressForVision(buffer: Buffer, mimeType: string): Promise<string> {
+  // Resize to max 1024px and convert to JPEG for a compact base64 payload
+  const compressed = await sharp(buffer)
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 80 })
+    .toBuffer()
+  return `data:image/jpeg;base64,${compressed.toString('base64')}`
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,33 +26,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Moment text is required' }, { status: 400 })
     }
 
-    // Process image — base64 for GPT-4o vision (always works), Supabase for display
+    // Process image
     let imageBase64: string | null = null
     let imageUrl: string | null = null
 
     if (imageFile && imageFile.size > 0) {
-      const imageBuffer = Buffer.from(await imageFile.arrayBuffer())
-      imageBase64 = `data:${imageFile.type};base64,${imageBuffer.toString('base64')}`
+      try {
+        const imageBuffer = Buffer.from(await imageFile.arrayBuffer())
 
-      // Ensure bucket exists, then upload for display
-      await supabase.storage.createBucket('media', { public: true }).catch(() => {})
-      const ext = imageFile.type.split('/')[1] || 'jpg'
-      const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-      const { error } = await supabase.storage
-        .from('media')
-        .upload(path, imageBuffer, { contentType: imageFile.type })
-      if (!error) {
-        imageUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
-      } else {
-        console.error('Image upload error:', error)
+        // Compress for GPT-4o vision (small payload, fast)
+        imageBase64 = await compressForVision(imageBuffer, imageFile.type)
+
+        // Upload original to Supabase for display
+        await supabase.storage.createBucket('media', { public: true }).catch(() => {})
+        const ext = imageFile.type.split('/')[1] || 'jpg'
+        const path = `images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage
+          .from('media')
+          .upload(path, imageBuffer, { contentType: imageFile.type })
+        if (!error) {
+          imageUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+        } else {
+          console.error('Image upload error:', error)
+        }
+      } catch (imgErr) {
+        console.error('Image processing error:', imgErr)
+        // Continue without image rather than failing the whole request
       }
     }
 
-    // Build message — always send image as base64 so GPT-4o can see it
+    // Build message for GPT-4o
     const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
       {
         type: 'text',
-        text: `Here's a moment from Prerana's day: ${momentText}${imageBase64 ? '\n\nShe also shared a photo from this moment. Look at it closely — describe what you see in the image and weave it naturally into the story, like you\'re looking at it together.' : ''}\n\nWrite a warm, personal story about this moment in third person (200–250 words). Also give it a short title (5–7 words).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
+        text: `Here's a moment from Prerana's day: ${momentText}${imageBase64 ? '\n\nShe also shared a photo from this moment. Look at it closely — describe what you see and weave it naturally into the story, like you\'re looking at it together.' : ''}\n\nWrite a warm, personal story about this moment in third person (200–250 words). Also give it a short title (5–7 words).\n\nRespond ONLY with valid JSON:\n{"title": "...", "story": "..."}`,
       },
     ]
     if (imageBase64) {
@@ -111,11 +128,12 @@ Never use: "amazing", "incredible", "journey", "empowered", "passion", "leverage
       .select()
       .single()
 
-    if (dbError) throw dbError
+    if (dbError) throw new Error(`Database error: ${dbError.message}`)
 
     return NextResponse.json({ id: saved.id })
   } catch (err) {
-    console.error('Generate error:', err)
-    return NextResponse.json({ error: 'Failed to generate story' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    console.error('Generate error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

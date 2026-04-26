@@ -50,8 +50,8 @@ export default function NewMomentPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Something went wrong')
       router.push(`/story/${data.id}`)
-    } catch {
-      setError('Something went wrong. Please try again.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       setLoading(false)
     } finally {
       clearInterval(interval)
