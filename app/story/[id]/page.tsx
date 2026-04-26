@@ -51,7 +51,7 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           ))}
         </div>
 
-        {story.audio_url && <AudioPlayer audioUrl={story.audio_url} />}
+        <AudioPlayer audioUrl={story.audio_url ?? `/api/tts/${story.id}`} />
       </article>
 
       <div className="mt-6 text-center">
